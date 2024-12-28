@@ -11,110 +11,116 @@ class Program
 {
     static void Main(string[] args)
     {
-
-        // some Files
+        // Paths for files
         string configPath = "config.ini";
         string readmePath = "readme.txt";
         string indexPath = "index.html";
 
-        // Check if the config.ini File exists
-        if(!File.Exists(configPath))
+        // Check if the configuration file exists
+        if (!File.Exists(configPath))
         {
-            Console.WriteLine("Config File not found. default Config gets created.");
+            Console.WriteLine("Configuration file not found. Creating default configuration...");
 
-            var parser1 = new FileIniDataParser();
+            var parser = new FileIniDataParser();
             IniData defaultConfig = new IniData();
-
             defaultConfig["Server"]["IP"] = "127.0.0.1";
             defaultConfig["Server"]["Port"] = "8080";
 
             try
             {
-                parser1.WriteFile(configPath, defaultConfig);
-                Console.WriteLine("Defaultconfig has been created!");
-            } catch (Exception ex)
+                parser.WriteFile(configPath, defaultConfig);
+                Console.WriteLine("Default configuration created: config.ini");
+                Console.WriteLine("Credits: Developed by [Your Name]");
+            }
+            catch (Exception ex)
             {
-                Console.WriteLine($"An Occurred Error while creating the Defaultconfig: {ex.ToString()}");
+                Console.WriteLine($"Error creating the configuration file: {ex.Message}");
                 return;
             }
         }
 
-        // Check if the readme.txt file exists
+        // Check if the README file exists
         if (!File.Exists(readmePath))
         {
-            Console.WriteLine("README-File not found. README-File gets created...");
+            Console.WriteLine("README file not found. Creating README...");
 
-            string readmeContent = "Welcome!\n\n" +
-                                   "This is a Webserver and was created with C#.\n" +
-                                   "You can Change the IPv4 and the Port in the config.ini File.\n\n" +
-                                   "Credits: Developed with Heart by AustrianNoah\n";
+            string readmeContent = "Welcome to the web server!\n\n" +
+                                   "This is a simple web server created in C#.\n" +
+                                   "Configuration file: config.ini\n" +
+                                   "Modify IP and Port in the config.ini to customize the server.\n" +
+                                   "The index.html file is used as the main page of the server.\n\n" +
+                                   "Credits: Developed by [Your Name]\n";
 
             try
             {
                 File.WriteAllText(readmePath, readmeContent);
-                Console.WriteLine("README-File has been created!");
-            } catch (Exception ex)
+                Console.WriteLine("README created: readme.txt");
+            }
+            catch (Exception ex)
             {
-                Console.WriteLine($"Error while creating the Readme File: {ex.Message}");
+                Console.WriteLine($"Error creating the README file: {ex.Message}");
                 return;
             }
         }
 
-        // Check if the index.html File exists
+        // Check if the index.html file exists
         if (!File.Exists(indexPath))
         {
-            Console.WriteLine("Index-Datei nicht gefunden. Erstelle Standard-Index...");
+            Console.WriteLine("Index file not found. Creating default index...");
 
-            string indexContent = "<html><body><h1>C# Webserver!</h1><p>Dies ist die Standard-Indexseite. Bearbeiten Sie die index.html-Datei, um den Inhalt zu ändern.</p></body></html>"; // some german spell o.O
+            string indexContent = "<html><body><h1>Welcome to the web server!</h1><p>This is the default index page. Edit the index.html file to change the content.</p></body></html>";
 
             try
             {
                 File.WriteAllText(indexPath, indexContent);
-                Console.WriteLine("Index-Datei erstellt: index.html");
+                Console.WriteLine("Index file created: index.html");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Fehler beim Erstellen der Index-Datei: {ex.Message}");
+                Console.WriteLine($"Error creating the index file: {ex.Message}");
                 return;
             }
         }
 
-        // Loading the Configuration from the .ini File in the Folder with IniParser
-        var parser = new FileIniDataParser();
+        // Load configuration from the .ini file using IniParser
+        var parserForConfig = new FileIniDataParser();
         IniData config;
 
         try
         {
-            config = parser.ReadFile("config.ini");
-        } catch (Exception ex)
+            config = parserForConfig.ReadFile(configPath);
+        }
+        catch (Exception ex)
         {
-            Console.WriteLine($"Error reading content from the Config: {ex.Message}");
+            Console.WriteLine($"Error reading the configuration file: {ex.Message}");
             return;
         }
 
-        string ipv4 = config["Server"]["IP"] ?? "127.0.0.1";
+        string ip = config["Server"]["IP"] ?? "127.0.0.1";
         int port = int.TryParse(config["Server"]["Port"], out int parsedPort) ? parsedPort : 8080;
 
         HttpListener listener = new HttpListener();
-        string url = $"http://{ipv4}:{port}/";
+        string url = $"http://{ip}:{port}/";
         listener.Prefixes.Add(url);
+
+        bool stopRequested = false;
 
         try
         {
             listener.Start();
-            Console.WriteLine($"Webserver gestartet unter {url}");
-            Console.WriteLine("Drücken Sie eine beliebige Taste, um den Server zu stoppen...");
+            Console.WriteLine($"Web server started at {url}");
+            Console.WriteLine("Press any key to stop the server...");
 
             // Separate task for processing requests
-            Task.Run(() =>
+            Task listenerTask = Task.Run(() =>
             {
-                while (listener.IsListening)
+                while (listener.IsListening && !stopRequested)
                 {
                     try
                     {
-                        var context = listener.GetContext(); // Wait for request
+                        var context = listener.GetContext(); // Waits for incoming requests
 
-                        // Check if the Index File can be accessed
+                        // Check if index.html can be read
                         string responseString;
                         if (File.Exists(indexPath))
                         {
@@ -122,7 +128,7 @@ class Program
                         }
                         else
                         {
-                            responseString = "<html><body><h1>Datei nicht gefunden</h1><p>Die index.html-Datei wurde gelöscht oder ist nicht verfügbar.</p></body></html>";
+                            responseString = "<html><body><h1>File not found</h1><p>The index.html file has been deleted or is unavailable.</p></body></html>";
                         }
 
                         byte[] buffer = Encoding.UTF8.GetBytes(responseString);
@@ -132,7 +138,7 @@ class Program
                     }
                     catch (HttpListenerException)
                     {
-                        // Listener got stopped
+                        // Listener has been stopped
                         break;
                     }
                     catch (Exception ex)
@@ -142,7 +148,10 @@ class Program
                 }
             });
 
-            Console.ReadKey(); // Wait for Userinput
+            Console.ReadKey(); // Wait for user input
+            stopRequested = true;
+            listener.Stop();
+            listenerTask.Wait();
         }
         catch (Exception ex)
         {
@@ -154,7 +163,15 @@ class Program
             {
                 listener.Stop();
             }
-            listener.Close();
+
+            try
+            {
+                listener.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error closing the listener: {ex.Message}");
+            }
         }
     }
 }
